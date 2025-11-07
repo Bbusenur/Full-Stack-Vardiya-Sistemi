@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
-import { usersApi } from '../services/api'
+import { usersAPI } from '../services/api'
 
 function Users() {
   const [users, setUsers] = useState([])
   const [showForm, setShowForm] = useState(false)
-  const [selectedUser, setSelectedUser] = useState(null)
+  const [editingUser, setEditingUser] = useState(null)
+  const [message, setMessage] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [userToDelete, setUserToDelete] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'employee',
+    role: 'employee'
   })
-  const [message, setMessage] = useState({ type: '', text: '' })
 
   useEffect(() => {
     loadUsers()
@@ -19,186 +21,278 @@ function Users() {
 
   const loadUsers = async () => {
     try {
-      const response = await usersApi.getAll()
+      const response = await usersAPI.getAll()
       setUsers(response.data)
     } catch (error) {
-      console.error('Error loading users:', error)
+      console.error('Kullanıcılar yüklenirken hata:', error)
     }
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setMessage(null)
+    
+    // Client-side validation
+    if (!formData.email.includes('@')) {
+      setMessage({ type: 'error', text: 'Geçerli bir email adresi giriniz' })
+      return
+    }
+    
+    if (!editingUser && formData.password.length < 6) {
+      setMessage({ type: 'error', text: 'Şifre en az 6 karakter olmalıdır' })
+      return
+    }
+    
     try {
-      if (selectedUser) {
-        await usersApi.update(selectedUser.id, formData)
+      if (editingUser) {
+        await usersAPI.update(editingUser.id, formData)
         setMessage({ type: 'success', text: 'Kullanıcı başarıyla güncellendi' })
       } else {
-        await usersApi.create(formData)
+        await usersAPI.create(formData)
         setMessage({ type: 'success', text: 'Kullanıcı başarıyla oluşturuldu' })
       }
+      // Önce modal'ı kapat
       setShowForm(false)
-      setSelectedUser(null)
+      setEditingUser(null)
       setFormData({ name: '', email: '', password: '', role: 'employee' })
-      loadUsers()
-      setTimeout(() => setMessage({ type: '', text: '' }), 3000)
+      // Sonra kullanıcıları yükle ve mesajın görünmesini bekle
+      await loadUsers()
     } catch (error) {
-      const errorMsg = error.response?.data?.errors?.join(', ') || 'Bir hata oluştu'
+      console.error('User create/update error:', error.response?.data)
+      const errors = error.response?.data?.errors || []
+      const errorMsg = Array.isArray(errors) ? errors.join(', ') : (error.response?.data?.error || 'Bir hata oluştu')
       setMessage({ type: 'error', text: errorMsg })
-      if (errorMsg.includes('email') || errorMsg.includes('Email')) {
+      
+      // Email validasyonu için özel mesaj
+      if (errorMsg.toLowerCase().includes('email') || (Array.isArray(errors) && errors.some(e => String(e).toLowerCase().includes('email')))) {
         setMessage({ type: 'error', text: 'Geçerli bir email adresi giriniz' })
-      } else if (errorMsg.includes('password') || errorMsg.includes('Password')) {
-        setMessage({ type: 'error', text: 'Şifre en az 6 karakter olmalıdır' })
       }
     }
   }
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')) {
+  const handleEdit = (user) => {
+    setEditingUser(user)
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: '',
+      role: user.role
+    })
+    setShowForm(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (userToDelete) {
       try {
-        await usersApi.delete(id)
+        await usersAPI.delete(userToDelete.id)
         setMessage({ type: 'success', text: 'Kullanıcı başarıyla silindi' })
+        setShowDeleteConfirm(false)
+        setUserToDelete(null)
         loadUsers()
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000)
       } catch (error) {
         setMessage({ type: 'error', text: 'Silme işlemi başarısız oldu' })
       }
     }
   }
 
-  const handleUserClick = (user) => {
-    setSelectedUser(user)
-    setFormData({
-      name: user.name,
-      email: user.email,
-      password: '',
-      role: user.role,
-    })
-  }
-
   return (
-    <div style={{ padding: '2rem' }} data-testid="users-page">
-      <h1>Kullanıcı Yönetimi</h1>
-      
-      {message.text && (
+    <div data-testid="users-page" style={{ color: '#2c3e50' }}>
+      <div className="page-header">
+        <h1 className="page-title">Kullanıcı Yönetimi</h1>
+        <button 
+          className="button" 
+          data-testid="create-user-button"
+          onClick={() => {
+            setShowForm(true)
+            setEditingUser(null)
+            setFormData({ name: '', email: '', password: '', role: 'employee' })
+          }}
+        >
+          Yeni Kullanıcı
+        </button>
+      </div>
+
+      {message && (
         <div 
+          className={`message message-${message.type}`}
           data-testid={message.type === 'success' ? 'success-message' : 'error-message'}
-          style={{
+          style={{ 
+            display: 'block',
+            position: 'relative',
+            zIndex: 1000,
+            margin: '1rem 0',
             padding: '1rem',
-            marginBottom: '1rem',
-            background: message.type === 'success' ? '#d4edda' : '#f8d7da',
-            color: message.type === 'success' ? '#155724' : '#721c24',
-            borderRadius: '4px',
+            borderRadius: '4px'
           }}
         >
           {message.text}
         </div>
       )}
 
-      <button
-        data-testid="create-user-button"
-        onClick={() => {
-          setShowForm(!showForm)
-          setSelectedUser(null)
-          setFormData({ name: '', email: '', password: '', role: 'employee' })
-        }}
-        style={{ marginBottom: '1rem', padding: '0.5rem 1rem' }}
-      >
-        {showForm ? 'Formu Kapat' : 'Yeni Kullanıcı Oluştur'}
-      </button>
-
-      {showForm && (
-        <form data-testid="user-form" onSubmit={handleSubmit} style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label>İsim: </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <label>Email: </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <label>Şifre: </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required={!selectedUser}
-              minLength={6}
-            />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <label>Rol: </label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              required
-            >
-              <option value="employee">Çalışan</option>
-              <option value="manager">Yönetici</option>
-            </select>
-          </div>
-          <button type="submit" data-testid="submit-user-button" style={{ padding: '0.5rem 1rem' }}>
-            {selectedUser ? 'Güncelle' : 'Oluştur'}
-          </button>
-        </form>
-      )}
-
-      <div data-testid="users-list">
-        {users.length === 0 ? (
-          <p>Henüz kullanıcı bulunmamaktadır.</p>
-        ) : (
-          users.map((user) => (
-            <div
-              key={user.id}
-              data-testid="user-item"
-              onClick={() => handleUserClick(user)}
-              style={{
-                padding: '1rem',
-                marginBottom: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              <h3>{user.name}</h3>
-              <p>Email: {user.email}</p>
-              <p>Rol: {user.role}</p>
-              <button
-                data-testid="edit-user-button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleUserClick(user)
-                  setShowForm(true)
+      {showDeleteConfirm && (
+        <div className="modal">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">Kullanıcıyı Sil</h2>
+              <button className="modal-close" onClick={() => {
+                setShowDeleteConfirm(false)
+                setUserToDelete(null)
+              }}>×</button>
+            </div>
+            <p>Bu kullanıcıyı silmek istediğinize emin misiniz?</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+              <button 
+                type="button" 
+                className="button button-secondary" 
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  setUserToDelete(null)
                 }}
-                style={{ marginRight: '0.5rem', padding: '0.25rem 0.5rem' }}
               >
-                Düzenle
+                İptal
               </button>
-              <button
-                data-testid="delete-user-button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDelete(user.id)
-                }}
-                style={{ padding: '0.25rem 0.5rem', background: '#dc3545', color: 'white', border: 'none' }}
+              <button 
+                type="button" 
+                className="button button-danger"
+                data-testid="confirm-delete-button"
+                onClick={handleConfirmDelete}
               >
                 Sil
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showForm && (
+        <div className="modal">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2 className="modal-title">{editingUser ? 'Kullanıcı Düzenle' : 'Yeni Kullanıcı'}</h2>
+              <button className="modal-close" onClick={() => {
+                setShowForm(false)
+                setEditingUser(null)
+                setFormData({ name: '', email: '', password: '', role: 'employee' })
+              }}>×</button>
+            </div>
+            <form onSubmit={handleSubmit} data-testid="user-form">
+              <div className="form-group">
+                <label className="form-label">Ad Soyad</label>
+                <input
+                  type="text"
+                  name="name"
+                  className="form-input"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  className="form-input"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+                />
+                {message && message.type === 'error' && (message.text.includes('email') || message.text.includes('Email')) && (
+                  <div className="message message-error" style={{ marginTop: '0.5rem', padding: '0.5rem' }} data-testid="error-message">
+                    Geçerli bir email adresi giriniz
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Şifre</label>
+                <input
+                  type="password"
+                  name="password"
+                  className="form-input"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required={!editingUser}
+                  minLength={6}
+                />
+                {message && message.type === 'error' && (message.text.includes('password') || message.text.includes('şifre') || message.text.includes('6')) && (
+                  <div className="message message-error" style={{ marginTop: '0.5rem', padding: '0.5rem' }} data-testid="error-message">
+                    Şifre en az 6 karakter olmalıdır
+                  </div>
+                )}
+              </div>
+              <div className="form-group">
+                <label className="form-label">Rol</label>
+                <select
+                  name="role"
+                  className="form-select"
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  required
+                >
+                  <option value="employee">Çalışan</option>
+                  <option value="manager">Yönetici</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="button button-secondary" onClick={() => {
+                  setShowForm(false)
+                  setEditingUser(null)
+                  setFormData({ name: '', email: '', password: '', role: 'employee' })
+                }}>
+                  İptal
+                </button>
+                <button type="submit" className="button" data-testid={editingUser ? "submit-update-button" : "submit-user-button"}>
+                  {editingUser ? 'Güncelle' : 'Oluştur'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="list" data-testid="users-list" style={{ minHeight: users.length === 0 ? '50px' : 'auto', color: '#2c3e50' }}>
+        {users.length === 0 ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#7f8c8d' }}>
+            Henüz kullanıcı bulunmamaktadır.
+          </div>
+        ) : (
+          users.map((user) => (
+          <div 
+            key={user.id} 
+            className="list-item" 
+            data-testid="user-item"
+          >
+            <div 
+              className="list-item-content"
+              onClick={() => handleEdit(user)}
+              style={{ cursor: 'pointer', flex: 1 }}
+            >
+              <div className="list-item-title">{user.name}</div>
+              <div className="list-item-meta">
+                {user.email} - {user.role}
+              </div>
+            </div>
+            <div className="list-item-actions">
+              <button 
+                className="button button-secondary"
+                data-testid="edit-user-button"
+                onClick={() => handleEdit(user)}
+              >
+                Düzenle
+              </button>
+              <button 
+                className="button button-danger"
+                data-testid="delete-user-button"
+                onClick={() => {
+                  setUserToDelete(user)
+                  setShowDeleteConfirm(true)
+                }}
+              >
+                Sil
+              </button>
+            </div>
+          </div>
           ))
         )}
       </div>

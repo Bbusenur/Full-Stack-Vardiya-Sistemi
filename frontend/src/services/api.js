@@ -9,7 +9,8 @@ const api = axios.create({
   },
 })
 
-export const usersApi = {
+// Users API
+export const usersAPI = {
   getAll: () => api.get('/users'),
   getById: (id) => api.get(`/users/${id}`),
   create: (data) => api.post('/users', { user: data }),
@@ -17,7 +18,8 @@ export const usersApi = {
   delete: (id) => api.delete(`/users/${id}`),
 }
 
-export const departmentsApi = {
+// Departments API
+export const departmentsAPI = {
   getAll: () => api.get('/departments'),
   getById: (id) => api.get(`/departments/${id}`),
   create: (data) => api.post('/departments', { department: data }),
@@ -25,7 +27,8 @@ export const departmentsApi = {
   delete: (id) => api.delete(`/departments/${id}`),
 }
 
-export const shiftsApi = {
+// Shifts API
+export const shiftsAPI = {
   getAll: () => api.get('/shifts'),
   getById: (id) => api.get(`/shifts/${id}`),
   create: (data) => api.post('/shifts', { shift: data }),
@@ -33,7 +36,8 @@ export const shiftsApi = {
   delete: (id) => api.delete(`/shifts/${id}`),
 }
 
-export const shiftAssignmentsApi = {
+// Shift Assignments API
+export const shiftAssignmentsAPI = {
   getAll: () => api.get('/shift_assignments'),
   getById: (id) => api.get(`/shift_assignments/${id}`),
   create: (data) => api.post('/shift_assignments', { shift_assignment: data }),
