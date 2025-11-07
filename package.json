@@ -1,0 +1,18 @@
+{
+  "name": "vardiya-backend",
+  "version": "1.0.0",
+  "description": "Vardiya Yönetim Sistemi Backend",
+  "scripts": {
+    "test:cucumber": "bundle exec cucumber",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run",
+    "cypress:run:frontend": "cypress run --spec 'cypress/e2e/frontend-*.cy.js'",
+    "cypress:run:api": "cypress run --spec 'cypress/e2e/*-yonetimi.cy.js'",
+    "cypress:demo": "cypress run --spec 'cypress/e2e/demo.cy.js' --headed",
+    "cypress:demo:video": "cypress run --spec 'cypress/e2e/demo.cy.js'",
+    "test:all": "npm run test:cucumber && npm run cypress:run:api"
+  },
+  "optionalDependencies": {
+    "cypress": "^12.17.4"
+  }
+}
